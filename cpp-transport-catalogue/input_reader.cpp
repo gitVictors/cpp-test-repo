@@ -2,10 +2,73 @@
 #include <cassert>
 #include <iterator>
 #include <algorithm>
+#include <sstream>
 #include "geo.h"
 
 namespace input {
 
+
+std::vector<std::pair<int, std::string>> ParseStopDistances(const std::string& input) {
+
+    using namespace std;
+
+    vector<pair<int, string>> result;
+
+    // Находим начало списка расстояний (после координат)
+    size_t dist_pos = input.find(',', input.find(',') + 1);
+    if (dist_pos == string::npos) {
+        return result; // Нет расстояний
+    }
+
+    string distances_str = input.substr(dist_pos);
+    std::istringstream iss(distances_str);
+    string token;
+
+    while (getline(iss, token, ',')) {
+        // Удаляем начальные и конечные пробелы
+        token.erase(0, token.find_first_not_of(" \t"));
+        token.erase(token.find_last_not_of(" \t") + 1);
+
+        if (token.empty()) continue;
+
+        // Парсим расстояние
+        size_t m_pos = token.find('m');
+        if (m_pos == string::npos) {
+            throw invalid_argument("Invalid distance format - missing 'm'");
+        }
+
+        string dist_str = token.substr(0, m_pos);
+        int distance;
+        try {
+            distance = stoi(dist_str);
+        } catch (...) {
+            throw invalid_argument("Invalid distance value");
+        }
+
+        if (distance <= 0) {
+            throw invalid_argument("Distance must be positive");
+        }
+
+        // Парсим название остановки
+        size_t to_pos = token.find("to ", m_pos);
+        if (to_pos == string::npos) {
+            throw invalid_argument("Invalid format - missing 'to'");
+        }
+
+        string stop_name = token.substr(to_pos + 3);
+        stop_name.erase(0, stop_name.find_first_not_of(" \t"));
+        stop_name.erase(stop_name.find_last_not_of(" \t") + 1);
+
+        if (stop_name.empty()) {
+            throw invalid_argument("Empty stop name");
+        }
+
+        result.emplace_back(distance, stop_name);
+    }
+
+
+    return result;
+}
 
 /**
  * Парсит строку вида "10.123,  -30.1837" и возвращает пару координат (широта, долгота)
@@ -119,9 +182,6 @@ void input::Reader::ApplyCommands(transport_catalogue::TransportCatalogue& catal
             auto coords = ParseCoordinates(command.description);
             catalogue.AddStop(command.id, coords);
 
-           // auto result = catalogue.ParseStopDistances(command.id, command.description);
-           // catalogue.AddDistance (command.id, result);
-
         } else if (command.command == "Bus") {
             auto stops = ParseRoute(command.description);
             bool is_roundtrip = command.description.find('>') != std::string::npos;
@@ -138,8 +198,29 @@ void input::Reader::ApplyCommands(transport_catalogue::TransportCatalogue& catal
 
     for (const auto& command : commands_) {
         if (command.command == "Stop"){
-            auto result = catalogue.ParseStopDistances(command.description);
-            catalogue.AddDistance (command.id, result);
+            auto result = ParseStopDistances(command.description);
+            // catalogue.AddDistance (command.id, result);
+
+            const transport_catalogue::Stop* from_stop = catalogue.GetStop(command.id);
+
+            if (!from_stop)
+            {
+                continue; // Остановка не найдена
+            }
+
+            // Добавляем все расстояния из вектора
+            for (const auto& [distance, to_stop_name] : result) {
+
+                const transport_catalogue::Stop* to_stop = catalogue.GetStop(to_stop_name);
+                if (!to_stop)
+                {
+                    continue;
+                }
+
+                catalogue.SetDistance( from_stop ,  to_stop , distance );
+
+
+            }
         }
     }
 }

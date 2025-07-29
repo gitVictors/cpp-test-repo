@@ -7,81 +7,29 @@ namespace transport_catalogue {
 
 using namespace std;
 
-vector<pair<int, string>> TransportCatalogue::ParseStopDistances(const string& input) {
-
-    vector<pair<int, string>> result;
-
-    // Находим начало списка расстояний (после координат)
-    size_t dist_pos = input.find(',', input.find(',') + 1);
-    if (dist_pos == string::npos) {
-        return result; // Нет расстояний
-    }
-
-    string distances_str = input.substr(dist_pos);
-    istringstream iss(distances_str);
-    string token;
-
-    while (getline(iss, token, ',')) {
-        // Удаляем начальные и конечные пробелы
-        token.erase(0, token.find_first_not_of(" \t"));
-        token.erase(token.find_last_not_of(" \t") + 1);
-
-        if (token.empty()) continue;
-
-        // Парсим расстояние
-        size_t m_pos = token.find('m');
-        if (m_pos == string::npos) {
-            throw invalid_argument("Invalid distance format - missing 'm'");
-        }
-
-        string dist_str = token.substr(0, m_pos);
-        int distance;
-        try {
-            distance = stoi(dist_str);
-        } catch (...) {
-            throw invalid_argument("Invalid distance value");
-        }
-
-        if (distance <= 0) {
-            throw invalid_argument("Distance must be positive");
-        }
-
-        // Парсим название остановки
-        size_t to_pos = token.find("to ", m_pos);
-        if (to_pos == string::npos) {
-            throw invalid_argument("Invalid format - missing 'to'");
-        }
-
-        string stop_name = token.substr(to_pos + 3);
-        stop_name.erase(0, stop_name.find_first_not_of(" \t"));
-        stop_name.erase(stop_name.find_last_not_of(" \t") + 1);
-
-        if (stop_name.empty()) {
-            throw invalid_argument("Empty stop name");
-        }
-
-        result.emplace_back(distance, stop_name);
-    }
-
-
-    return result;
-}
 
 
 
 //Добавление дистанции между остановками
-void TransportCatalogue::SetDistance(std::string_view from, std::string_view to, int meters) {
+void TransportCatalogue::SetDistance(const Stop* from, const Stop* to, int meters) {
 
-    pair<string_view, string_view> var = {from, to};
+    pair<const Stop*,const Stop*> var = {from, to};
 
     distances_[var] = meters;
 
 }
 
-int TransportCatalogue::GetDistance(const std::string& from, const std::string& to) const {
-    if (distances_.count({from, to})) return distances_.at({from, to});
-    if (distances_.count({to,from})) return distances_.at({to, from});
-    else return -1;
+int TransportCatalogue::GetDistance(const Stop* from_stop, const Stop* to_stop) const {
+
+    if (distances_.count({from_stop, to_stop}))
+    {
+        return distances_.at({from_stop, to_stop});
+    }
+    if (distances_.count({to_stop,from_stop}))
+    {
+        return distances_.at({to_stop, from_stop});
+    }
+    return 0;
 }
 
 
@@ -91,7 +39,8 @@ void TransportCatalogue::AddDistance (const std::string& name, vector<pair<int, 
     // Находим указатель на текущую остановку
     const Stop* from_stop = GetStop(name);
 
-    if (!from_stop) {
+    if (!from_stop)
+    {
         return; // Остановка не найдена
     }
 
@@ -99,13 +48,12 @@ void TransportCatalogue::AddDistance (const std::string& name, vector<pair<int, 
     for (const auto& [distance, to_stop_name] : pvc) {
 
         const Stop* to_stop = GetStop(to_stop_name);
-        if (!to_stop){
-
+        if (!to_stop)
+        {
             continue;
-
         }
 
-        SetDistance( string_view(from_stop->name),  string_view(to_stop->name), distance );
+        SetDistance( from_stop,  to_stop, distance );
 
 
     }
@@ -213,8 +161,8 @@ const RouteInfo TransportCatalogue::RouteInformation(const std::string_view& num
 
             geo_length += ComputeDistance(from->coordinates, to->coordinates);
 
-            int distance = GetDistance(from->name, to->name);
-            if (distance != -1) {
+            int distance = GetDistance( from, to);
+            if (distance != 0) {
                 real_length += distance;
             } else {
                 // Если расстояние не найдено, используем географическое расстояние
@@ -232,8 +180,8 @@ const RouteInfo TransportCatalogue::RouteInformation(const std::string_view& num
             double segment_geo = ComputeDistance(from->coordinates, to->coordinates);
             geo_length += segment_geo;
 
-            int distance = GetDistance(from->name, to->name);
-            if (distance != -1) {
+            int distance = GetDistance( from, to );
+            if (distance != 0) {
                 real_length += distance;
             } else {
                 // Если расстояние не найдено, используем географическое расстояние

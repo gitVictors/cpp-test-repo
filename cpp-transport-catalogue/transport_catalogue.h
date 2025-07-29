@@ -34,10 +34,18 @@ struct RouteInfo {
     double curvature;  // отношение фактической длины маршрута к географическому расстоянию
 };
 
+// struct PairHasher {
+//     size_t operator()(const std::pair<std::string_view, std::string_view> pr) const{
+//         auto h1 = std::hash<std::string_view>{}(pr.first);
+//         auto h2 = std::hash<std::string_view>{}(pr.second);
+//         return h1 + h2 * 37;
+//     }
+// };
+
 struct PairHasher {
-    size_t operator()(const std::pair<std::string_view, std::string_view> pr) const{
-        auto h1 = std::hash<std::string_view>{}(pr.first);
-        auto h2 = std::hash<std::string_view>{}(pr.second);
+    size_t operator()(const std::pair<const Stop*, const Stop*> pr) const {
+        auto h1 = std::hash<const Stop*>{}(pr.first);
+        auto h2 = std::hash<const Stop*>{}(pr.second);
         return h1 + h2 * 37;
     }
 };
@@ -48,7 +56,6 @@ struct BusPtrCompare {
     }
 };
 
-//vector<pair<int, string>> ParseStopDistances(const string& input);
 
 class TransportCatalogue {
 public:
@@ -66,10 +73,9 @@ public:
 
     //дистанция между остановками
     void AddDistance (const std::string& name, vector<pair<int, string>>& pvc );
-    void SetDistance(std::string_view from,  std::string_view to, int meters);
-    int GetDistance(const string &from, const string &to) const;
+    void SetDistance(const Stop* from, const Stop* to, int meters);
+    int GetDistance(const Stop* from, const Stop* to) const;
 
-    vector<pair<int, string>>ParseStopDistances(const string& input);
 
 private:
     void UpdateStopToBus (const std::string& name_number, const std::vector<std::string>& stops);
@@ -84,7 +90,7 @@ private:
     std::unordered_map<std::string_view, std::set<const Bus*, BusPtrCompare>> stop_to_buses_;
 
     //дистанция между остановками
-    std::unordered_map<std::pair<std::string_view, std::string_view>, int,  PairHasher> distances_;  //
+    std::unordered_map<std::pair<const Stop*, const Stop*>, int,  PairHasher> distances_;  //
 };
 
 
